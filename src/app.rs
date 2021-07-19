@@ -1,26 +1,24 @@
 use std::io::{Stdout, Write, stdout};
-use tui::{ Terminal, backend::{CrosstermBackend, Backend}};
+use tui::{ Terminal, buffer::{Buffer, Cell}, backend::{CrosstermBackend, Backend}};
 
 use super::{
     ui,
     prefix::Prefix,
     mode::Mode,
+    LxResult,
 };
-use crossterm::{
-    event::{self, Event, EventStream, KeyCode, KeyEvent, KeyModifiers, poll},
-    cursor::{self, position}, style::{self, SetBackgroundColor, SetColors},
-    terminal::{self, ClearType,  disable_raw_mode, enable_raw_mode},
-    execute, queue, Result as CTResult,
-};
+use crossterm::{Result as CTResult, cursor::{self, CursorShape, position}, event::{self, Event, EventStream, KeyCode, KeyEvent, KeyModifiers, poll}, execute, queue, style::{self, SetBackgroundColor, SetColors}, terminal::{self, ClearType,  disable_raw_mode, enable_raw_mode}};
 use std::time::Duration;
 
 // TODO make wrapper type for key event / event type
+// TODO use tui buffer type for buffers
 pub struct Lx<W: Write + Backend> {
     pub prev_keys: Vec<KeyEvent>,
     pub prefix: Option<Prefix>,
     pub term: Terminal<W>,
     pub buf: Vec<String>,
     pub buf_idx: usize,
+    pub cmd_buf: String,
     pub mode: Mode,
     pub pos: (u16, u16),
     pub quit: bool,
@@ -38,6 +36,7 @@ impl Default for Lx<CrosstermBackend<Stdout>> {
             prefix: None,
             term,
             buf_idx: 0,
+            cmd_buf: String::new(),
             buf: vec![String::new()],
             mode: Mode::insert(),
             pos: (0, 0),
@@ -47,7 +46,7 @@ impl Default for Lx<CrosstermBackend<Stdout>> {
 }
 impl Lx<CrosstermBackend<Stdout>> {
 
-    pub fn run(&mut self) -> CTResult<()> {
+    pub fn run(&mut self) -> LxResult<()> {
         terminal::enable_raw_mode()?;
         self.term.clear()?;
         /* let mut reader = EventStream::new();
@@ -57,6 +56,7 @@ impl Lx<CrosstermBackend<Stdout>> {
             event::EnableMouseCapture,
             terminal::EnterAlternateScreen,
             terminal::EnableLineWrap,
+            cursor::EnableBlinking,
             terminal::SetTitle("lx editor"),
         )?;
         loop {
@@ -72,9 +72,20 @@ impl Lx<CrosstermBackend<Stdout>> {
         }
     }
 
+    pub fn exec_cmd(&mut self) -> LxResult<()> {
+        match self.cmd_buf.as_str() {
+            "quit" => { self.quit = true; },
+            "command" => { self.mode = Mode::command(); },
+            "insert" => { self.mode = Mode::insert(); },
+            "edit" => { self.mode = Mode::edit(); },
+            "overview" => { self.mode = Mode::overview(); },
+            _ => {  }
+        }
+        Ok(())
+    }
     /// STEP 1
         /// Step 1.1: Check if prev keypress triggered prefix
-    fn match_key_event(&mut self, kv: KeyEvent) -> CTResult<()> {
+    fn match_key_event(&mut self, kv: KeyEvent) -> LxResult<()> {
         let prev_key = *self.prev_keys.last()
             .unwrap_or(&KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') });
 
@@ -84,8 +95,8 @@ impl Lx<CrosstermBackend<Stdout>> {
         } else if let Some(prefix) = Prefix::match_global_key(kv) {
             self.prefix = Some(prefix);
 
-        } else if let Some(mode) = Mode::match_key(kv) {
-            self.mode = mode;
+        } else if let Some(mode) = self.mode.match_key(kv) {
+            self.mode_switch(mode)?;
         } else {
             match &self.mode {
                 Mode::Insert(_ctx) => {self.match_insert_key_event(kv)?;}
@@ -95,29 +106,66 @@ impl Lx<CrosstermBackend<Stdout>> {
             }
         }
         self.prev_keys.push(kv);
+        if self.quit {
+            self.exit()?;
+        }
+        Ok(())
+    }
+    fn mode_switch(&mut self, mode: Mode) -> LxResult<()> {
+        if self.mode != mode {
+            match self.mode {
+                Mode::Insert(_) | Mode::Edit(_) => {
+                    execute!(self.term.backend_mut(),
+                        cursor::SavePosition)?;
+                },
+                _ => {  }
+            }
+            match mode {
+                Mode::Insert(_) => {
+                    execute!(self.term.backend_mut(),
+                        cursor::RestorePosition,
+                        cursor::SetCursorShape(CursorShape::Line),
+                    )?;
+                },
+                Mode::Command(_) => {
+                    execute!(self.term.backend_mut(),
+                        cursor::MoveToRow(terminal::size()?.1-1),
+                        cursor::SetCursorShape(CursorShape::Line),)?;
+                },
+                Mode::Edit(_) => {
+                    execute!(self.term.backend_mut(),
+                        cursor::SetCursorShape(CursorShape::Block),
+                        cursor::RestorePosition)?;
+                },
+                Mode::Overview(_) => {
+                    execute!(self.term.backend_mut(),
+                        cursor::SetCursorShape(CursorShape::Block))?;
+                }
+            }
+            self.mode = mode;
+        }
         Ok(())
     }
     fn write_char(&mut self, ch: char) {
         self.buf[self.buf_idx].push(ch);
-        // println!("BUF: {}", self.buf);
+    }
+    fn write_cmd_char(&mut self, ch: char) {
+        self.cmd_buf.push(ch);
     }
 
-    fn match_event(&mut self, ev: Event) -> CTResult<()> {
+    fn match_event(&mut self, ev: Event) -> LxResult<()> {
         match ev {
             Event::Key(ke) => {self.match_key_event(ke)?;  },
             Event::Resize(x,y) => {
-                // println!("{} {}", x, y);
             } ,
             _ => {},
         }
         Ok(())
     }
     fn match_leader_event(&mut self, ke: KeyEvent) -> CTResult<()> {
-        // println!("LEADER ACTION!");
         if poll(Duration::from_millis(1_000))? {
             match ke {
                 KeyEvent { code: KeyCode::Enter,.. } => {
-                    // println!("LEADER+ENTER PRESSEED");
                 },
                 KeyEvent { code: KeyCode::Char(c), .. }  => match c {
                     '1'..='9' => { self.switch_buf(c as usize)?; },
@@ -132,10 +180,8 @@ impl Lx<CrosstermBackend<Stdout>> {
                 KeyEvent { code, modifiers } => {
 
                 },
-                // println!("LEADER+{:?}+{:?}", code, modifiers);
             }
         } else {
-            // println!("Leader timed out");
         }
         self.prefix = None;
         Ok(())
@@ -162,16 +208,13 @@ impl Lx<CrosstermBackend<Stdout>> {
             }
             KeyCode::Char('q') => {
                 self.quit = true;
-                self.exit()?;
             }
             _ => {}
         }
-        // println!("Cursor at : {:?} (says {:?})", position(), self.pos);
         execute!(self.term.backend_mut(), cursor::SavePosition)?;
         Ok(())
     }
     fn match_shift(&mut self, code: KeyCode) -> CTResult<()> {
-        // println!("SHIFT PRESSED");
         match code {
             KeyCode::Char('h') => {execute!(self.term.backend_mut(), cursor::MoveLeft(1))?;}
             KeyCode::Char('j') => {execute!(self.term.backend_mut(), cursor::MoveDown(1))?;}
@@ -191,10 +234,14 @@ impl Lx<CrosstermBackend<Stdout>> {
                 execute!(self.term.backend_mut(), terminal::ScrollDown(3))?;
             },
             KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') } => {
-                self.exit()?;
+                self.quit = true;
             },
             KeyEvent { modifiers: KeyModifiers::CONTROL, code } => {
                 self.match_insert_ctrl(code)?;
+            },
+            KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Backspace } => {
+                self.buf[self.buf_idx].pop();
+                execute!(self.term.backend_mut(), cursor::MoveLeft(1))?;
             },
             KeyEvent { code: KeyCode::Char(c), .. } => self.write_char(c),
             /* KeyEvent { modifiers: KeyModifiers::SHIFT, code } => {
@@ -207,7 +254,7 @@ impl Lx<CrosstermBackend<Stdout>> {
     fn match_overview_key_event(&mut self, kv: KeyEvent, ) -> CTResult<()> {
         match kv {
             KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') } => {
-                self.exit()?;
+                self.quit = true;
             },
             KeyEvent { modifiers: KeyModifiers::CONTROL, code } => {  },
             KeyEvent { modifiers: KeyModifiers::SHIFT, code } => {  },
@@ -215,10 +262,14 @@ impl Lx<CrosstermBackend<Stdout>> {
         }
         Ok(())
     }
-    fn match_command_key_event(&mut self, kv: KeyEvent, ) -> CTResult<()> {
+    fn match_command_key_event(&mut self, kv: KeyEvent, ) -> LxResult<()> {
         match kv {
+            KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Enter  } => {
+                self.exec_cmd()?;
+                self.mode_switch(Mode::edit())?;
+            }
             KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') } => {
-                self.exit()?;
+                self.quit = true;
             },
             KeyEvent { modifiers: KeyModifiers::CONTROL, code } => {
                 self.match_insert_ctrl(code)?;
@@ -226,7 +277,10 @@ impl Lx<CrosstermBackend<Stdout>> {
             /* KeyEvent { modifiers: KeyModifiers::SHIFT, code } => {
                 self.match_shift(code)?;
             }, */
-            KeyEvent { code, .. } => { self.match_key_code(code)?; },
+            KeyEvent { code: KeyCode::Char(c), .. } => {
+                self.write_cmd_char(c);
+            },
+            _ => {  },
         }
         Ok(())
     }
@@ -236,23 +290,25 @@ impl Lx<CrosstermBackend<Stdout>> {
             self.match_leader_event(kv)?;
         } else {
             match kv {
-                KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') } => {
-                    self.exit()?;
+                KeyEvent { modifiers: KeyModifiers::CONTROL, code } => match code {
+                    KeyCode::Char('q') => { self.quit = true; },
+                    _ => {  }
                 },
                 KeyEvent { modifiers: KeyModifiers::NONE, code } => match code {
                     KeyCode::Char('q') => { self.close_buf()?; },
                     KeyCode::Char('c') => { self.create_buf()?; },
+                    KeyCode::Char('n') => { execute!(self.term.backend_mut(), cursor::MoveToNextLine(1))?; },
+                    KeyCode::Char('p') => { execute!(self.term.backend_mut(), cursor::MoveToPreviousLine(1))?; },
+                    KeyCode::Char('j') | KeyCode::Down  => { execute!(self.term.backend_mut(), cursor::MoveDown(1))?; },
+                    KeyCode::Char('h') | KeyCode::Left => { execute!(self.term.backend_mut(), cursor::MoveLeft(1))?; },
+                    KeyCode::Char('k') | KeyCode::Up => { execute!(self.term.backend_mut(), cursor::MoveUp(1))?; },
+                    KeyCode::Char('l') | KeyCode::Right => { execute!(self.term.backend_mut(), cursor::MoveRight(1))?; },
+                    KeyCode::PageUp => { execute!(self.term.backend_mut(), terminal::ScrollUp(3))?; },
+                    KeyCode::PageDown => { execute!(self.term.backend_mut(), terminal::ScrollDown(3))?; },
                     _ => {  }
-                },
-                KeyEvent { modifiers: KeyModifiers::CONTROL, code } => match code {
-                    KeyCode::Char('q') => { self.exit()?; },
-                    _ => {  }
-                },
-                KeyEvent { modifiers: KeyModifiers::SHIFT, code } => match code {
-                    KeyCode::Char('b') => {}
-                    _ => {}
                 }
-                _ => {  }
+                KeyEvent { modifiers, code } => {}
+
             }
         }
         Ok(())
@@ -267,23 +323,7 @@ impl Lx<CrosstermBackend<Stdout>> {
 
     fn match_key_code(&mut self, kc: KeyCode) -> CTResult<()> {
         match kc {
-            KeyCode::Enter => {
-                execute!(self.term.backend_mut(), cursor::MoveToNextLine(1))?;
-            },
-            KeyCode::Backspace => {
-                self.buf.pop();
-                execute!(self.term.backend_mut(), cursor::MoveLeft(1))?;
-            },
-            KeyCode::Char('h') | KeyCode::Left => {
-                execute!(self.term.backend_mut(), cursor::MoveLeft(1))?;
-
-            }
-            KeyCode::Char('j') | KeyCode::Down => {execute!(self.term.backend_mut(), cursor::MoveDown(1))?;}
-            KeyCode::Char('k') | KeyCode::Up => {execute!(self.term.backend_mut(), cursor::MoveUp(1))?;}
-            KeyCode::Char('l') | KeyCode::Right => {execute!(self.term.backend_mut(), cursor::MoveRight(1))?;}
-            KeyCode::PageUp => { execute!(self.term.backend_mut(), cursor::MoveUp(8))?; }
-            KeyCode::PageDown => { execute!(self.term.backend_mut(), cursor::MoveDown(8))?; }
-            KeyCode::Char('q') => { self.exit()?; }
+            KeyCode::Char('q') => { self.quit = true; }
             KeyCode::Esc => {},
             _ => {}
         }
@@ -298,7 +338,7 @@ impl Lx<CrosstermBackend<Stdout>> {
     fn close_buf(&mut self) -> CTResult<()> {
         self.buf.remove(self.buf_idx);
         if self.buf.len() == 0 {
-            self.exit()?;
+             self.quit = true;
         } else {
             self.buf_idx -= 1;
         }
@@ -308,8 +348,13 @@ impl Lx<CrosstermBackend<Stdout>> {
         self.buf_idx = idx;
         Ok(())
     }
-    fn exit(&mut self, ) -> CTResult<()> {
-        execute!(self.term.backend_mut(), event::DisableMouseCapture)?;
-        disable_raw_mode()
+    pub fn exit(&mut self, ) -> CTResult<()> {
+        execute!(self.term.backend_mut(),
+            event::DisableMouseCapture,
+            terminal::LeaveAlternateScreen,
+            terminal::Clear(ClearType::All),
+            )?;
+        terminal::disable_raw_mode();
+        Ok(())
     }
 }

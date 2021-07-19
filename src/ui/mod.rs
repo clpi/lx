@@ -23,7 +23,7 @@ pub fn draw_ui<W: Write + Backend>(app: &mut Lx<W>) -> LxResult<()> {
     let cursor = crossterm::cursor::position().expect("Could not get cursor");
     let bu = &app.buf[app.buf_idx].clone();
     let debug_str: String = match &app.mode {
-        Mode::Command(CommandMode { command_buf }) =>  format!("CMD: {}", command_buf ),
+        Mode::Command(_) =>  format!("CMD: {}", &app.cmd_buf ),
         _ =>  format!("POS: [{}, {}], P: {:?}", cursor.0, cursor.1,
             app.prev_keys.last().unwrap_or(&KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('q') })),
     };

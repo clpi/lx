@@ -37,7 +37,8 @@ impl Default for OverviewPane {
 }
 impl Mode {
 
-    pub fn match_key(kv: KeyEvent) -> Option<Self> {
+    // TODO this is super wasteful and redundant
+    pub fn match_key(&mut self,kv: KeyEvent) -> Option<Self> {
         if let Some(insert) = <InsertMode as GlobalKey>::match_key(kv) {
             Some(Self::Insert(insert))
         } else if let Some(overview) = <OverviewMode as GlobalKey>::match_key(kv) {
@@ -47,15 +48,25 @@ impl Mode {
         } else if let Some(command) = <CommandMode as GlobalKey>::match_key(kv) {
             Some(Self::Command(command))
         } else {
-            None
+            match kv {
+                KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Esc } => match self {
+                    Mode::Insert(_) => Some(Self::edit()),
+                    Mode::Edit(_) => Some(Self::overview()),
+                    Mode::Command(_) => Some(Self::edit()),
+                    Mode::Overview(_) => Some(Self::edit())
+                },
+                KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Enter } => match self {
+                    Mode::Overview(_) => Some(Self::edit()),
+                    Mode::Edit(_) => Some(Self::insert()),
+                    _ => { None } //Command mode will exec command -- deal with that in command specific ev loop
+                },
+                KeyEvent { modifiers: KeyModifiers::SHIFT, code: KeyCode::Char(':') } => match self {
+                    Mode::Edit(_) => Some(Self::command()),
+                    _ => None,
+                }
+                _ => { None }
+            }
         }
-    }
-    pub fn exec_app<W: Backend + Write>(&self, app: &mut Lx<W>) -> LxResult<()> {
-        match self {
-            Self::Insert(_) => {},
-            _ => {  }
-        }
-        Ok(())
     }
     /// By default, bound to
     pub fn toggle_insert(&self) -> Self {
@@ -88,12 +99,12 @@ impl GlobalKey for OverviewMode {
     }
     fn match_key(ke: KeyEvent) -> Option<Self> {
         match ke {
-            KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('s') } |
-            KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Esc } =>
-                Some(Self::default()),
+            KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('v') } |
             _ => None,
         }
     }
+}
+impl CommandMode {
 }
 impl GlobalKey for EditMode {
     type Op = ModeOp;
