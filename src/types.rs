@@ -1,17 +1,32 @@
+#[derive(Debug, PartialEq)]
+pub enum CursorDirection { Up, Down, Left, Right }
 
-#[derive(Debug)]
-pub enum Direction { Forwards, Backwards }
+impl ToString for CursorDirection {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Up => "U".into(),
+            Self::Down => "D".into(),
+            Self::Left => "L".into(),
+            Self::Right => "R".into(),
+        }
+    }
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Direction { Next, Prev }
+
 impl Default for Direction {
     fn default() -> Self {
-        Self::Forwards
+        Self::Next
     }
 }
 
 impl ToString for Direction {
     fn to_string(&self) -> String {
         match self {
-            Self::Forwards => "FWD".into(),
-            Self::Backwards => "BWD".into(),
+            Self::Next => "->".into(),
+            Self::Prev => "<-".into(),
         }
     }
 }

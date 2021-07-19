@@ -1,4 +1,5 @@
 pub mod prefix;
+pub mod config;
 pub mod error;
 pub mod key;
 pub mod types;
@@ -8,7 +9,7 @@ pub mod ui;
 
 use self::{
     mode::Mode,
-    key::{EditKey, GlobalKey, PrefixKey},
+    key::{EditKey, GlobalKey, GlobalPrefixKey, EditPrefixKey, map::*},
     prefix::{Prefix, MotionPre, WindowPre, SearchPre, TabPre, LeaderPre, BufferPre},
 };
 use std::io::{Stdout, Write, stdout};
@@ -26,6 +27,10 @@ use tui::style::Style;
 use tui::widgets::{Block, Borders, Paragraph};
 use std::time::Duration;
 
+pub use self::{
+    error::{LxError, LxResult},
+    types::Direction,
+};
 
 
 pub struct Lx<W: Write + Backend> {

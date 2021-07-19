@@ -35,13 +35,13 @@ impl Mode {
 
     pub fn match_global_key(kv: KeyEvent) -> Option<Self> {
         if let Some(insert) = <InsertMode as GlobalKey>::match_key(kv) {
-            Some(insert)
+            Some(Self::Insert(insert))
         } else if let Some(overview) = <OverviewMode as GlobalKey>::match_key(kv) {
-            Some(overview)
+            Some(Self::Overview(overview))
         } else if let Some(edit) = <EditMode as GlobalKey>::match_key(kv) {
-            Some(edit)
+            Some(Self::Edit(edit))
         } else if let Some(command) = <CommandMode as GlobalKey>::match_key(kv) {
-            Some(command)
+            Some(Self::Command(command))
         } else {
             None
         }
@@ -65,12 +65,13 @@ impl Mode {
 }
 impl GlobalKey for InsertMode {
     fn key() -> KeyEvent {
-        KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('z') }
+        KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('v') }
     }
 }
+// TODO should probaly make key() return a list of valid keys?
 impl GlobalKey for OverviewMode {
     fn key() -> KeyEvent {
-        KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('s') }
+        KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('z') }
     }
     fn match_key(ke: KeyEvent) -> Option<Self> {
         match ke {
