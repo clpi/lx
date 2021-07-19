@@ -6,7 +6,7 @@ use crate::{
 };
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Prefix {
     Leader(LeaderPre),
     Buffer(BufferPre),
@@ -72,36 +72,58 @@ impl Prefix {
 /// SPECIFIC PREFIX ACTIONS
 /// All of the below prefixes are global in scope, meaning they are triggered with a
 /// ctrl + ? binding in any mode, and take precedence.
+///
 
-#[derive(Debug, Default)]
-pub struct LeaderPre {
-
-}
-#[derive(Debug, Default)]
-pub struct BufferPre {
+#[derive(Debug, PartialEq)]
+pub enum LeaderPre {
+    Cancel
 
 }
-#[derive(Debug, Default)]
-pub struct TabPre {
+#[derive(Debug, PartialEq)]
+pub enum BufferPre {
+    Cancel
 
 }
-#[derive(Debug, Default)]
-pub struct FindPre {
-    target: FindTarget,
-}
-#[derive(Debug, Default)]
-pub struct MotionPre {
-    dir: Direction,
-}
-#[derive(Debug, Default)]
-pub struct SearchPre {
-    dir: Direction,
-}
-#[derive(Debug, Default)]
-pub struct WindowPre {
-    split: bool,
+#[derive(Debug, PartialEq)]
+pub enum TabPre {
+    Cancel
 
 }
+#[derive(Debug, PartialEq)]
+pub enum FindPre {
+    Files { dir: String },
+    Buffers,
+    History,
+    Cancel
+
+}
+#[derive(Debug, PartialEq)]
+pub enum MotionPre {
+    Word(Direction, usize),
+    Line(Direction, usize),
+    Cancel
+}
+#[derive(Debug, PartialEq)]
+pub enum SearchPre {
+    Search(Option<Direction>, String, bool), //case insensitive?
+    Replace(Option<Direction>, String, bool),
+    Cancel
+}
+#[derive(Debug, PartialEq)]
+pub enum WindowPre {
+    Split{},
+    Move{},
+    Cancel
+
+}
+
+impl Default for LeaderPre { fn default() -> Self { LeaderPre::Cancel } }
+impl Default for MotionPre { fn default() -> Self { MotionPre::Cancel } }
+impl Default for BufferPre { fn default() -> Self { BufferPre::Cancel } }
+impl Default for TabPre { fn default() -> Self { TabPre::Cancel } }
+impl Default for FindPre { fn default() -> Self { FindPre::Cancel }}
+impl Default for SearchPre { fn default() -> Self { SearchPre::Cancel }}
+impl Default for WindowPre { fn default() -> Self { WindowPre::Cancel }}
 
 impl GlobalPrefixKey for LeaderPre {
     type Op = GlobalOp;
@@ -145,7 +167,7 @@ impl GlobalPrefixKey for TabPre {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('\\') }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FindTarget { Files, Buffers, }
 impl ToString for FindTarget {
     fn to_string(&self) -> String {
@@ -163,13 +185,13 @@ impl Default for FindTarget {
 impl ToString for Prefix {
     fn to_string(&self) -> String {
         match self {
-            Prefix::Leader(LeaderPre {}) => "Leader".to_string(),
-            Prefix::Buffer(BufferPre {}) => "Buffer".to_string(),
-            Prefix::Tab(TabPre {}) => "Tab".to_string(),
-            Prefix::Find(FindPre { target }) => format!("Find {}", target.to_string()),
-            Prefix::Window(WindowPre { split }) => format!("Win (s: {})", split),
-            Prefix::Motion(MotionPre { dir }) => format!("Move {}", dir.to_string()),
-            Prefix::Search(SearchPre { dir }) => format!("Search {},", dir.to_string()),
+            Prefix::Leader(_lp) => "Leader".to_string(),
+            Prefix::Buffer(_bp) => "Buffer".to_string(),
+            Prefix::Tab(_tp) => "Tab".to_string(),
+            Prefix::Find(_fp) => "Find ".to_string(),
+            Prefix::Window(_wp) => "Win".to_string(),
+            Prefix::Motion(_wp) => "Move ".to_string(),
+            Prefix::Search(_wp) => "Search".to_string(),
         }
     }
 }
