@@ -104,37 +104,43 @@ pub struct WindowPre {
 }
 
 impl GlobalPrefixKey for LeaderPre {
-    type Operation = GlobalOp;
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char(' ') }
     }
 }
 impl GlobalPrefixKey for BufferPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('e') }
     }
 }
 impl GlobalPrefixKey for FindPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('f') }
     }
 }
 impl GlobalPrefixKey for SearchPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('l') }
     }
 }
 impl GlobalPrefixKey for WindowPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('w') }
     }
 }
 impl GlobalPrefixKey for MotionPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('g') }
     }
 }
 impl GlobalPrefixKey for TabPre {
+    type Op = GlobalOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('\\') }
     }

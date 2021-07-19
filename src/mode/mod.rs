@@ -1,28 +1,32 @@
-use crossterm::event::{KeyModifiers, KeyCode, KeyEvent};
-use crate::key::GlobalKey;
+use std::io::Write;
+use crossterm::{
+    event::{KeyModifiers, KeyCode, KeyEvent,},
+};
+use tui::backend::Backend;
+use crate::{Lx, LxResult, key::GlobalKey, op::ModeOp};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Mode {
     Overview(OverviewMode),
     Command(CommandMode),
     Edit(EditMode),
     Insert(InsertMode),
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct OverviewMode {
     view: OverviewPane
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct CommandMode {
-    command_buf: String,
+    pub command_buf: String,
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct EditMode {
 }
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct InsertMode {
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OverviewPane {
     Buffers, Tabs, History
 }
@@ -33,7 +37,7 @@ impl Default for OverviewPane {
 }
 impl Mode {
 
-    pub fn match_global_key(kv: KeyEvent) -> Option<Self> {
+    pub fn match_key(kv: KeyEvent) -> Option<Self> {
         if let Some(insert) = <InsertMode as GlobalKey>::match_key(kv) {
             Some(Self::Insert(insert))
         } else if let Some(overview) = <OverviewMode as GlobalKey>::match_key(kv) {
@@ -45,6 +49,13 @@ impl Mode {
         } else {
             None
         }
+    }
+    pub fn exec_app<W: Backend + Write>(&self, app: &mut Lx<W>) -> LxResult<()> {
+        match self {
+            Self::Insert(_) => {},
+            _ => {  }
+        }
+        Ok(())
     }
     /// By default, bound to
     pub fn toggle_insert(&self) -> Self {
@@ -64,12 +75,14 @@ impl Mode {
     }
 }
 impl GlobalKey for InsertMode {
+    type Op = ModeOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('v') }
     }
 }
 // TODO should probaly make key() return a list of valid keys?
 impl GlobalKey for OverviewMode {
+    type Op = ModeOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('z') }
     }
@@ -83,11 +96,13 @@ impl GlobalKey for OverviewMode {
     }
 }
 impl GlobalKey for EditMode {
+    type Op = ModeOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('c') }
     }
 }
 impl GlobalKey for CommandMode {
+    type Op = ModeOp;
     fn key() -> KeyEvent {
         KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('x') }
     }

@@ -1,4 +1,4 @@
-use crate::error::LxError;
+use crate::error::{LxConfigError, LxError};
 use serde::{Serializer, Deserializer, Serialize, Deserialize};
 use std::convert::TryFrom;
 use crossterm::{
@@ -19,7 +19,7 @@ pub enum KeyMap {
 }
 
 impl TryFrom<String> for KeyMap {
-    type Error = LxError;
+    type Error = LxConfigError;
 
     fn try_from(map: String) -> Result<Self, Self::Error> {
         let map_lc = map.to_lowercase();
@@ -46,8 +46,7 @@ impl TryFrom<String> for KeyMap {
                 return Ok( KeyMap::CtrlAlt(ch))
             }
         }
-
-        return Err(LxError::InvalidKeymap(map.to_string()));
+        return Err(LxConfigError::InvalidKeymap(map.to_string()));
     }
 }
 

@@ -1,7 +1,6 @@
 use std::{io::Write, path::PathBuf};
 use crossterm::execute;
 use tui::backend::Backend;
-
 use crate::{Lx, error::{LxResult, LxError}, mode::Mode, prefix::FindTarget, types::Direction};
 
 pub trait Operation: Default {
@@ -94,7 +93,9 @@ impl Default for InsertOp { fn default() -> Self { InsertOp::Nothing }}
 impl Default for SearchOp { fn default() -> Self { SearchOp::Nothing }}
 impl Default for MotionOp { fn default() -> Self { MotionOp::Nothing }}
 impl Default for ModeOp {
-    fn default() -> Self { ModeOp::Nothing }
+    fn default() -> Self {
+        ModeOp::Insert
+    }
 }
 
 impl Operation for EditOp {
@@ -156,7 +157,7 @@ impl Operation for ModeOp {
     fn exec<W: Write>(&self, w: W) -> LxResult<()> {
         Ok(())
     }
-    fn exec_app<W: Write>(&self, lx: &mut Lx<W>) -> LxResult<()> {
+    fn exec_app<W: Write + Backend>(&self, lx: &mut Lx<W>) -> LxResult<()> {
         match self {
             Self::Insert => { lx.mode = Mode::insert(); },
             Self::Edit => { lx.mode = Mode::edit(); },
