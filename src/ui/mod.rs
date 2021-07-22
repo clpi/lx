@@ -9,6 +9,15 @@ use tui::{
 
 use crate::{Lx, LxResult, Mode, mode::CommandMode};
 
+/* pub fn status_bar() -> Paragraph {
+    Paragraph::default()
+
+}
+pub fn header() -> Paragraph {
+    Paragraph::default()
+
+} */
+
 pub fn draw_ui<W: Write + Backend>(app: &mut Lx<W>) -> LxResult<()> {
     let mode = &app.mode;
     let st = format!("MODE: {}, PRE: {:?}, B: {}/{} Q: {}",

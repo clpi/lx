@@ -7,7 +7,7 @@ use super::{
     mode::Mode,
     LxResult,
 };
-use crossterm::{Result as CTResult, cursor::{self, CursorShape, position}, event::{self, Event, EventStream, KeyCode, KeyEvent, KeyModifiers, poll}, execute, queue, style::{self, SetBackgroundColor, SetColors}, terminal::{self, ClearType,  disable_raw_mode, enable_raw_mode}};
+use crossterm::{Result as CTResult, cursor::{CursorShape, self, position}, event::{self, Event, EventStream, KeyCode, KeyEvent, KeyModifiers, poll}, execute, queue, style::{self, SetBackgroundColor, SetColors}, terminal::{self, ClearType,  disable_raw_mode, enable_raw_mode}};
 use std::time::Duration;
 
 // TODO make wrapper type for key event / event type
@@ -354,7 +354,7 @@ impl Lx<CrosstermBackend<Stdout>> {
             terminal::LeaveAlternateScreen,
             terminal::Clear(ClearType::All),
             )?;
-        terminal::disable_raw_mode();
+        terminal::disable_raw_mode()?;
         Ok(())
     }
 }

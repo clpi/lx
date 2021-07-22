@@ -60,7 +60,7 @@ impl Mode {
                     Mode::Edit(_) => Some(Self::insert()),
                     _ => { None } //Command mode will exec command -- deal with that in command specific ev loop
                 },
-                KeyEvent { modifiers: KeyModifiers::SHIFT, code: KeyCode::Char(':') } => match self {
+                KeyEvent { modifiers: KeyModifiers::NONE, code: KeyCode::Char(':') } => match self {
                     Mode::Edit(_) => Some(Self::command()),
                     _ => None,
                 }
